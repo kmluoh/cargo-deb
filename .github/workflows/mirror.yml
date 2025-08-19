@@ -1,0 +1,48 @@
+name: Sync Upstream to Downstream
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # runs daily at 02:00 UTC
+  workflow_dispatch:       # allow manual trigger too
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout downstream repo
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false   # we'll use a custom token
+          fetch-depth: 0               # fetch all history
+
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/kornelski/cargo-deb.git
+          git fetch upstream
+
+      - name: Push all tags
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_MIRROR }}
+        run: |
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/kmluoh/cargo-deb.git --tags
+
+      - name: Push all branches
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_MIRROR }}
+        run: |
+          for rb in $(git branch -r); do
+            if [[ ${rb} == upstream/* ]]; then
+              b=${rb#upstream/}
+              [ ${b} != HEAD ] || continue
+              echo "pushing $b"
+              git push https://x-access-token:${GITHUB_TOKEN}@github.com/kmluoh/cargo-deb.git refs/remotes/upstream/${b}:refs/heads/${b}
+              echo ""
+            fi
+          done
+
