@@ -1,0 +1,38 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"   # Trigger only on version tags like v1.0.0
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Pull builder image
+        run: docker pull docker.io/kmluoh/rust:1.75.0-bookworm-2
+
+      - name: Build inside container
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            kmluoh/rust:1.75.0-bookworm-2 \
+            /bin/bash -c "cargo deb"
+
+      - name: Archive build artifacts
+        run: |
+          mkdir -p artifacts
+          cp target/debian/*.deb artifacts/
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
